@@ -26,15 +26,6 @@ services:
       # Google OAuth
       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-}
       - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET:-}
-      # Redis
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - REDIS_PASSWORD=${REDIS_PASSWORD:-}
-      # RabbitMQ
-      - RABBITMQ_HOST=rabbitmq
-      - RABBITMQ_PORT=5672
-      - RABBITMQ_USER=${RABBITMQ_USER:-yourapp}
-      - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD:-password123}
       # Email
       - EMAIL_FROM=${EMAIL_FROM:-gamingafriza005@gmail.com}
       - SMTP_HOST=${SMTP_HOST:-smtp.gmail.com}
@@ -49,10 +40,6 @@ services:
     depends_on:
       db:
         condition: service_healthy
-      redis:
-        condition: service_healthy
-      rabbitmq:
-        condition: service_healthy
     networks:
       - yourapp_network
     restart: unless-stopped
@@ -65,7 +52,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password123}
       POSTGRES_DB: ${POSTGRES_DB:-yourapp}
     ports:
-      - "5432:5432"
+      - "5433:5432"   # host 5433 agar tidak bentrok dengan postgres lain di 5432
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
@@ -76,59 +63,8 @@ services:
       timeout: 5s
       retries: 5
 
-  redis:
-    image: redis:7-alpine
-    container_name: yourapp_redis
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis_data:/data
-    networks:
-      - yourapp_network
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    command: redis-server --appendonly yes
-
-  rabbitmq:
-    image: rabbitmq:3-management-alpine
-    container_name: yourapp_rabbitmq
-    environment:
-      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-yourapp}
-      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-password123}
-    ports:
-      - "5672:5672"   # AMQP port
-      - "15672:15672" # Management UI
-    volumes:
-      - rabbitmq_data:/var/lib/rabbitmq
-    networks:
-      - yourapp_network
-    healthcheck:
-      test: ["CMD", "rabbitmq-diagnostics", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  pgweb:
-    image: sosedoff/pgweb:latest
-    container_name: yourapp_pgweb
-    ports:
-      - "8081:8081"
-    environment:
-      - DATABASE_URL=postgres://${POSTGRES_USER:-yourapp_db}:${POSTGRES_PASSWORD:-password123}@db:5432/${POSTGRES_DB:-yourapp}?sslmode=disable
-    depends_on:
-      db:
-        condition: service_healthy
-    networks:
-      - yourapp_network
-    restart: unless-stopped
-
 volumes:
   postgres_data:
-  redis_data:
-  rabbitmq_data:
 
 networks:
   yourapp_network:

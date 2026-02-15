@@ -3,6 +3,7 @@ package app
 import (
 	"net/http"
 
+	"yourapp/internal/model"
 	"yourapp/internal/repository"
 	"yourapp/internal/util"
 

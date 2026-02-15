@@ -2,7 +2,6 @@ package app
 
 import (
 	"log"
-	"time"
 	"yourapp/internal/config"
 	"yourapp/internal/middleware"
 	"yourapp/internal/model"
@@ -45,57 +44,27 @@ func NewRouter(cfg *config.Config) *gin.Engine {
 	if err := db.AutoMigrate(&model.User{}); err != nil {
 		panic("Failed to migrate database: " + err.Error())
 	}
+	if err := db.AutoMigrate(&model.Order{}); err != nil {
+		panic("Failed to migrate database: " + err.Error())
+	}
 
 	// Initialize repositories
 	userRepo := repository.NewUserRepository(db)
+	orderRepo := repository.NewOrderRepository(db)
 
-	// Initialize RabbitMQ with retry logic
-	rabbitMQ := initRabbitMQWithRetry(cfg)
-
-	// Initialize email service
+	// Email: sent via goroutine (no RabbitMQ)
 	emailService := service.NewEmailService(cfg)
-
-	// Initialize email worker if RabbitMQ is available
-	var emailWorker *service.EmailWorker
-	if rabbitMQ != nil {
-		emailWorker = service.NewEmailWorker(emailService, rabbitMQ)
-		if err := emailWorker.Start(); err != nil {
-			log.Printf("Warning: Failed to start email worker: %v", err)
-		} else {
-			log.Println("Email worker started successfully")
-		}
-	} else {
-		log.Println("Email worker not started - RabbitMQ connection failed. Will retry on first email send.")
-		// Start background goroutine to retry RabbitMQ connection and start email worker
-		go func() {
-			for {
-				time.Sleep(10 * time.Second)
-				newRabbitMQ := initRabbitMQWithRetry(cfg)
-				if newRabbitMQ != nil {
-					log.Println("RabbitMQ reconnected! Starting email worker...")
-					emailWorker = service.NewEmailWorker(emailService, newRabbitMQ)
-					if err := emailWorker.Start(); err != nil {
-						log.Printf("Warning: Failed to start email worker after reconnect: %v", err)
-					} else {
-						log.Println("Email worker started successfully after reconnect")
-						// Update rabbitMQ in authService (we'll need to modify authService to support this)
-						// For now, we'll rely on the reconnect logic in PublishEmail
-						break
-					}
-				}
-			}
-		}()
-	}
 
 	// Initialize WebSocket hub
 	wsHub := util.NewHub()
 	go wsHub.Run()
 
 	// Initialize services
-	authService := service.NewAuthServiceWithConfig(userRepo, cfg.JWTSecret, rabbitMQ, cfg, wsHub)
+	authService := service.NewAuthServiceWithConfig(userRepo, cfg.JWTSecret, emailService, cfg, wsHub)
 
 	// Initialize handlers
 	authHandler := NewAuthHandler(authService, cfg.JWTSecret)
+	orderHandler := NewOrderHandler(orderRepo)
 
 	// API routes
 	api := r.Group("/api/v1")
@@ -117,6 +86,9 @@ func NewRouter(cfg *config.Config) *gin.Engine {
 			// Protected routes
 			auth.GET("/me", authHandler.AuthMiddleware(), authHandler.GetMe)
 		}
+
+		// Orders (protected)
+		api.GET("/orders/pending", authHandler.AuthMiddleware(), orderHandler.GetPending)
 
 		// WebSocket route for real-time notifications
 		api.GET("/ws", HandleWebSocket(wsHub, cfg.JWTSecret))
@@ -147,37 +119,6 @@ func initDB(cfg *config.Config) (*gorm.DB, error) {
 	}
 
 	return db, nil
-}
-
-// initRabbitMQWithRetry attempts to connect to RabbitMQ with exponential backoff retry
-func initRabbitMQWithRetry(cfg *config.Config) *util.RabbitMQClient {
-	maxRetries := 10
-	initialDelay := 2 * time.Second
-	maxDelay := 30 * time.Second
-
-	for attempt := 1; attempt <= maxRetries; attempt++ {
-		rabbitMQ, err := util.NewRabbitMQClient(cfg)
-		if err == nil {
-			log.Printf("RabbitMQ connected successfully on attempt %d", attempt)
-			return rabbitMQ
-		}
-
-		if attempt < maxRetries {
-			// Calculate delay with exponential backoff
-			delay := initialDelay * time.Duration(1<<uint(attempt-1))
-			if delay > maxDelay {
-				delay = maxDelay
-			}
-
-			log.Printf("Failed to connect to RabbitMQ (attempt %d/%d): %v. Retrying in %v...", attempt, maxRetries, err, delay)
-			time.Sleep(delay)
-		} else {
-			log.Printf("Warning: Failed to connect to RabbitMQ after %d attempts: %v. Email sending will be disabled.", maxRetries, err)
-			log.Println("Note: RabbitMQ will be retried automatically when email is sent (if connection is restored)")
-		}
-	}
-
-	return nil
 }
 
 func corsMiddleware(clientURL string) gin.HandlerFunc {
