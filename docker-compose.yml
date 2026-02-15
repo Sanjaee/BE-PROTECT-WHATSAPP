@@ -40,8 +40,8 @@ services:
       - SMTP_HOST=${SMTP_HOST:-smtp.gmail.com}
       - SMTP_PORT=${SMTP_PORT:-587}
       - EMAIL_NAME=${EMAIL_NAME:-Zacode}
-      - SMTP_USERNAME=${SMTP_USERNAME:-gamingafriza005@gmail.com}
-      - SMTP_PASSWORD=${SMTP_PASSWORD:-prcypthkwnplsuzv}
+      - SMTP_USERNAME=${SMTP_USERNAME:-muhammadazizajg@gmail.com}
+      - SMTP_PASSWORD=${SMTP_PASSWORD:-xigiolmeavjshrrt}
       # Rate Limiting
       - RATE_LIMIT_ENABLED=${RATE_LIMIT_ENABLED:-true}
       - RATE_LIMIT_RPS=${RATE_LIMIT_RPS:-100}
