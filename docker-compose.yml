@@ -5,7 +5,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: yourapp_app
+    container_name: protek_app
     ports:
       - "5001:5000"
     environment:
@@ -41,12 +41,12 @@ services:
       db:
         condition: service_healthy
     networks:
-      - yourapp_network
+      - protek_network
     restart: unless-stopped
 
   db:
     image: postgres:15-alpine
-    container_name: yourapp_postgres
+    container_name: protek_postgres
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-yourapp_db}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password123}
@@ -56,7 +56,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
-      - yourapp_network
+      - protek_network
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U yourapp_db -d yourapp"]
       interval: 10s
@@ -67,5 +67,5 @@ volumes:
   postgres_data:
 
 networks:
-  yourapp_network:
+  protek_network:
     driver: bridge
